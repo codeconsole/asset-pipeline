@@ -16,6 +16,7 @@
 
 package asset.pipeline
 
+import org.webjars.WebJarAssetLocator
 import spock.lang.Specification
 import asset.pipeline.fs.FileSystemAssetResolver
 import asset.pipeline.utils.Handler
@@ -166,34 +167,31 @@ class AssetHelperSpec extends Specification {
     }
 
     void "resolveWebjarPath caches resolved paths"() {
-        when:
-            // Clear cache first to ensure clean state
+        setup: 'snapshot original static state'
+            def originalLocator = getStaticField(AssetHelper, 'webJarLocator')
+            def originalInitialized = getStaticField(AssetHelper, 'webJarLocatorInitialized')
+
+        and: 'mock WebJarAssetLocator injected into AssetHelper'
             AssetHelper.clearWebJarCache()
+            def locator = Mock(WebJarAssetLocator)
+            setStaticField(AssetHelper, 'webJarLocator', locator)
+            setStaticField(AssetHelper, 'webJarLocatorInitialized', true)
 
-            // First call should resolve and cache
-            def result1 = AssetHelper.resolveWebjarPath('webjars/dist/jquery.min.js')
+        when: 'resolving the same path twice'
+            def a = AssetHelper.resolveWebjarPath('webjars/dist/jquery.min.js')
+            def b = AssetHelper.resolveWebjarPath('webjars/dist/jquery.min.js')
 
-            // Manually inspect cache to verify it was populated
-            def cacheField = AssetHelper.getDeclaredField('WEBJAR_CACHE')
-            cacheField.setAccessible(true)
-            def cache = cacheField.get(null) as Map
-            def cachedValue = cache.get('webjars/dist/jquery.min.js')
+        then: 'the underlying locator is only hit once (second call hits the cache)'
+            1 * locator.getFullPath('dist/jquery.min.js') >> 'webjars/jquery/3.7.1/dist/jquery.min.js'
+            0 * _
 
-            // Second call should return the cached value
-            def result2 = AssetHelper.resolveWebjarPath('webjars/dist/jquery.min.js')
+        and: 'both results are as expected'
+            a == 'webjars/jquery/3.7.1/dist/jquery.min.js'
+            a == b
 
-        then:
-            // Verify first resolution worked
-            result1.startsWith('webjars/jquery/')
-            result1.contains('/dist/jquery.min.js')
-
-            // Verify cache was populated
-            cachedValue != null
-            cachedValue == result1
-
-            // Verify second call returns same cached value
-            result2 == result1
-            result2 == cachedValue
+        cleanup: 'restore original static state'
+            setStaticField(AssetHelper, 'webJarLocator', originalLocator)
+            setStaticField(AssetHelper, 'webJarLocatorInitialized', originalInitialized)
     }
 
     void "clearWebJarCache clears the cache"() {
@@ -202,9 +200,7 @@ class AssetHelperSpec extends Specification {
             AssetHelper.resolveWebjarPath('webjars/dist/jquery.min.js')
 
             // Verify cache has entries
-            def cacheField = AssetHelper.getDeclaredField('WEBJAR_CACHE')
-            cacheField.setAccessible(true)
-            def cache = cacheField.get(null) as Map
+            def cache = getStaticField(AssetHelper, 'WEBJAR_CACHE') as Map
             def sizeBeforeClear = cache.size()
 
             // Clear the cache
@@ -219,5 +215,17 @@ class AssetHelperSpec extends Specification {
 
             // Verify cache is empty after clearing
             sizeAfterClear == 0
+    }
+
+    private static Object getStaticField(Class<?> type, String name) {
+        def f = type.getDeclaredField(name)
+        f.accessible = true
+        f.get(null)
+    }
+
+    private static void setStaticField(Class<?> type, String name, Object value) {
+        def f = type.getDeclaredField(name)
+        f.accessible = true
+        f.set(null, value)
     }
 }
