@@ -208,15 +208,21 @@ The Asset Pipeline plugin provides automatic version resolution for WebJars, eli
 
 ### Setup
 
-To enable WebJar version resolution in Grails applications, add the webjars-locator-core dependency:
+To enable WebJar version resolution in Grails applications, add the webjars-locator-core dependency.
+
+**IMPORTANT**: Use `assetDevelopmentRuntime` configuration to avoid bundling webjars in your production JAR/WAR:
 
 ```groovy
 dependencies {
-    implementation "org.webjars:webjars-locator-core"
+    // assetDevelopmentRuntime dependencies are:
+    // - Available during development (bootRun)
+    // - Available during asset compilation (production build)
+    // - NOT included in bootJar/bootWar (saves space, faster startup)
+    assetDevelopmentRuntime "org.webjars:webjars-locator-core:0.59"
 
     // Add your webjar dependencies
-    implementation "org.webjars.npm:jquery:3.7.1"
-    implementation "org.webjars.npm:bootstrap:5.3.0"
+    assetDevelopmentRuntime "org.webjars.npm:jquery:3.7.1"
+    assetDevelopmentRuntime "org.webjars.npm:bootstrap:5.3.0"
 }
 ```
 
